@@ -48,7 +48,7 @@ ALTITUDE = False # WARNING: Currently bugged. (Value reported is too large.)
 
 ## This outputs to file (for aprx beacon) instead of calling system 'beacon'
 APRX = False # Standalone beacon by default
-APRX_PATH = '/tmp/beacon.txt'
+APRX_PATH = 'beacon.txt'
 
 ## Log to file - NOT YET IMPLEMENTED
 ## This will provide a log of all happennings (beacons, loss of gps, regain of gps,..)
@@ -67,7 +67,7 @@ UDP = True
 UDP_ADDRESS = "srvr.aprs-is.net"
 UDP_PORT = 8080
 
-PASSWORD = "9116"
+PASSWORD = "00000"
 
 # Function to encode (shorten) the lat,lon values in the packets
 def latlon_encode(value):
@@ -176,10 +176,10 @@ class Beaconer(threading.Thread):
 
    def get_last_beacon(self): # Provides a timer since last beacon sent
        return self.beacon_timer
-       
+
    def get_last_comment(self): # Provides a timer since last comment sent
        return self.comment_timer
-       
+
    def get_last_fix(self): # Provides a timer since the last known 3D fix
        return self.no_gps_timer
 
@@ -194,16 +194,16 @@ class Beaconer(threading.Thread):
 
    def get_debug(self):
 	return self.full_string
-       
+
    def get_beacon_period(self): # Returns the beacon interval in seconds
        return self.beacon_period
-       
+
    def get_comment_period(self): # Returns the comment interval in seconds
        return self.comment_period
-       
-   def get_beacon_debug(self): # Returns last aprs string sent 
+
+   def get_beacon_debug(self): # Returns last aprs string sent
       return self.last_beacon
-       
+
    def runbeacon(self):
        if APRX: # APRX - Always send comment
           beacon_string = self.short_beacon()+COMMENT
@@ -221,7 +221,7 @@ class Beaconer(threading.Thread):
        else:
           self.send_beacon(beacon_string)
        self.beacon_timer = time.time()
-       
+
    def send_beacon(self,aprs_string): # Sends beacon using system 'beacon'
        system_string = "/usr/sbin/beacon -c "+CALLSIGN+" -d '"+PATH+"' -s sm0 "+re.escape(aprs_string)
        os.system(system_string)

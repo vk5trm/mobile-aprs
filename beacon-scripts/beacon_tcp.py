@@ -1,10 +1,13 @@
 #! /usr/local/bin/python2
 #-*- coding: utf-8 -*-
 
-## Copyright 2011, 2012 Philip Crump M0DNY <pdc1g09@ecs.soton.ac.uk>
-
+## Copyright 2019 Robert Middelmann VK5TRM <vk5trm@gmail.com>
+##
+## Based on the orginal USB_beacon script by Philip Crump M0DNY <pdc1g09@ecs.soton.ac.uk>
 ## GPS control code copied from ukhas wiki: http://ukhas.org.uk/guides:ublox6
-
+##
+## TCP GPS beacon script Uses share GPS on an android phone/tablet as a GPS source
+##
 ## This program is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
@@ -34,9 +37,9 @@ SYMBOL = '>' # Car
 
 ## APRS Comment <== CHANGE THIS
 COMMENT = 'Mobile APRS Igate/Digipeater'
-COMMENT_PERIOD = 20 # Period of sending comment in minutes
+COMMENT_PERIOD = 30 # Period of sending comment in minutes
 
-BEACON_PERIOD = 3 # Period of sending position beacon in minutes
+BEACON_PERIOD = 2 # Period of sending position beacon in minutes
 
 ## Adds a timestamp to location data, only useful in very high network latency
 ## or low GPS signal environments.
@@ -59,6 +62,8 @@ DEBUG = False
 
 # Make sure the comment is sent 'at least' once every comment_period
 REAL_COMMENT_PERIOD = (COMMENT_PERIOD - BEACON_PERIOD) + 1 # add 1 minute
+# TCP GPS IP Address TCP port is 50000
+TCPGPS = "192.168.69.14"
 
 import gps, os, time, math, threading, re, serial, socket
 
@@ -84,19 +89,14 @@ class GpsPoller(threading.Thread):
    def __init__(self):
        	threading.Thread.__init__(self)
        	try:
-       	 self.ser = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
-       	except:
-       	  try:
-       	   self.ser = serial.Serial('/dev/ttyUSB1', 9600, timeout=1)
-       	  except:
-       	    try:
-       	     self.ser = serial.Serial('/dev/ttyUSB2', 9600, timeout=1)
-       	    except:
-       	      print 'Error: GPS not found.'
-              os._exit(1)
-
+			self.gps = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			self.gps.connect((TCPGPS, 50000))
+			self.gps.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)  # disable nagle algorithm
+      	except:
+			print 'Error: GPS not found.'
+			os._exit(1)
 	## Clear buffer
-	dummy = self.ser.readline()
+	dummy = self.gps.recv(2048)
 	self.current_value = None
 	self.stopped = False
 	self.fix=False
@@ -174,7 +174,7 @@ class GpsPoller(threading.Thread):
    def run(self):
        try:
             while not self.stopped:
-		line = self.ser.readline()
+		line = self.gps.recv(2048)
 		self.contact=True
 		try:
 			self.full_string = line
@@ -264,13 +264,15 @@ class Beaconer(threading.Thread):
        else:
           beacon_string = self.short_beacon()
        self.last_beacon = beacon_string
+       self.beacon_timer = time.time()
        if APRX:
           self.save_beacon(beacon_string)
-       else:
+          self.beacon_timer = time.time()
+       else: # UDP:
 	  self.udp_beacon(beacon_string)
 	  self.beacon_timer = time.time()
 
-   def udp_beacon(self,aprs_string): # Sends beacon using system 'beacon'
+   def udp_beacon(self,aprs_string): # Sends beacon to APRSIS using  UDP
        udp_string = "user " + CALLSIGN + " pass " + PASSWORD + " vers M0DNY-PiBeacon 0.1\n"
        udp_string += CALLSIGN + ">APRS,TCPIP*:" + aprs_string
        self.sock.sendto( udp_string, (UDP_ADDRESS, UDP_PORT))
@@ -363,6 +365,8 @@ if __name__ == "__main__":
          else:
             if APRX==False: ## Can I do this with '!APRS' ?
                print 'Comment timer: ', math.trunc((time.time() - shout.get_last_comment())/60), '/', shout.get_comment_period()/60, ' minutes.'
+            #else:
+				#os._exit(0)
          if DEBUG:
 	    if gpsp.fix:
 	      print 'Lat: ', gpsp.gps_lat
